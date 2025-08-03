@@ -34,7 +34,7 @@ class Mod23BenchmarkGenerator:
         """Generate a random operation."""
         return self.rng.choice(list(Operation))
     
-    def _build_expression(self, n: int, use_parentheses: bool = True) -> Tuple[str, int]:
+    def _build_expression(self, n: int, use_parentheses: bool = True) -> Tuple[str, int, int]:
         """
         Build a mathematical expression with n numbers.
         
@@ -43,7 +43,7 @@ class Mod23BenchmarkGenerator:
             use_parentheses: Whether to add parentheses for grouping
             
         Returns:
-            Tuple of (expression_string, correct_answer)
+            Tuple of (expression_string, correct_answer, requires_modulo_flag)
         """
         if n < 2:
             raise ValueError("Need at least 2 numbers for an expression")
@@ -71,48 +71,83 @@ class Mod23BenchmarkGenerator:
                     expr_parts.insert(paren_end + 2, ")")
                     expression = "".join(expr_parts)
         
-        # Calculate the correct answer
-        try:
-            # Evaluate the expression modulo 23
-            answer = eval(expression) % self.modulus
-        except:
-            # Fallback: calculate step by step
-            answer = self._calculate_modular_result(numbers, operations)
+        # Calculate both the raw result and modular result
+        raw_result, modular_result = self._calculate_results(numbers, operations)
         
-        return expression, answer
+        # Determine if modulo operation is required
+        requires_modulo = 1 if raw_result != modular_result else 0
+        
+        return expression, modular_result, requires_modulo
+    
+    def _calculate_results(self, numbers: List[int], operations: List[Operation]) -> Tuple[int, int]:
+        """
+        Calculate both the raw result and the result modulo 23.
+        Follows standard operator precedence.
+        
+        Returns:
+            Tuple of (raw_result, modular_result)
+        """
+        # Convert to a format we can process with operator precedence
+        # First handle multiplication, then addition/subtraction left to right
+        
+        # Create copies to work with for raw calculation
+        nums_raw = numbers.copy()
+        ops_raw = operations.copy()
+        
+        # Create copies to work with for modular calculation
+        nums_mod = numbers.copy()
+        ops_mod = operations.copy()
+        
+        # Calculate raw result (without modulo)
+        # First pass: handle multiplication
+        i = 0
+        while i < len(ops_raw):
+            if ops_raw[i] == Operation.MUL:
+                result = nums_raw[i] * nums_raw[i + 1]
+                nums_raw[i] = result
+                nums_raw.pop(i + 1)
+                ops_raw.pop(i)
+            else:
+                i += 1
+        
+        # Second pass: handle addition and subtraction left to right
+        raw_result = nums_raw[0]
+        for i, op in enumerate(ops_raw):
+            if op == Operation.ADD:
+                raw_result = raw_result + nums_raw[i + 1]
+            elif op == Operation.SUB:
+                raw_result = raw_result - nums_raw[i + 1]
+        
+        # Calculate modular result
+        # First pass: handle multiplication
+        i = 0
+        while i < len(ops_mod):
+            if ops_mod[i] == Operation.MUL:
+                result = (nums_mod[i] * nums_mod[i + 1]) % self.modulus
+                nums_mod[i] = result
+                nums_mod.pop(i + 1)
+                ops_mod.pop(i)
+            else:
+                i += 1
+        
+        # Second pass: handle addition and subtraction left to right
+        modular_result = nums_mod[0]
+        for i, op in enumerate(ops_mod):
+            if op == Operation.ADD:
+                modular_result = (modular_result + nums_mod[i + 1]) % self.modulus
+            elif op == Operation.SUB:
+                modular_result = (modular_result - nums_mod[i + 1]) % self.modulus
+        
+        return raw_result, modular_result
     
     def _calculate_modular_result(self, numbers: List[int], operations: List[Operation]) -> int:
         """
         Calculate the result of operations modulo 23 step by step.
         Follows standard operator precedence.
         """
-        # Convert to a format we can process with operator precedence
-        # First handle multiplication, then addition/subtraction left to right
-        
-        # Create a copy of numbers and operations to work with
-        nums = numbers.copy()
-        ops = operations.copy()
-        
-        # First pass: handle multiplication
-        i = 0
-        while i < len(ops):
-            if ops[i] == Operation.MUL:
-                result = (nums[i] * nums[i + 1]) % self.modulus
-                nums[i] = result
-                nums.pop(i + 1)
-                ops.pop(i)
-            else:
-                i += 1
-        
-        # Second pass: handle addition and subtraction left to right
-        result = nums[0]
-        for i, op in enumerate(ops):
-            if op == Operation.ADD:
-                result = (result + nums[i + 1]) % self.modulus
-            elif op == Operation.SUB:
-                result = (result - nums[i + 1]) % self.modulus
-        
-        return result
+        # This method is kept for backward compatibility
+        _, modular_result = self._calculate_results(numbers, operations)
+        return modular_result
     
     def generate_question(self, n: int = 3, use_parentheses: bool = True) -> str:
         """
@@ -125,7 +160,7 @@ class Mod23BenchmarkGenerator:
         Returns:
             Formatted question string with answer
         """
-        expression, answer = self._build_expression(n, use_parentheses)
+        expression, answer, requires_modulo = self._build_expression(n, use_parentheses)
         return f"Question: What is {expression} modulo 23? Answer: {answer}"
     
     def generate_questions(self, count: int, n: int = 3, use_parentheses: bool = True) -> List[str]:
@@ -157,7 +192,7 @@ class Mod23BenchmarkGenerator:
         Returns:
             List of 23 question strings, each with a different answer (0-22)
         """
-        expression, correct_answer = self._build_expression(n, use_parentheses)
+        expression, correct_answer, requires_modulo = self._build_expression(n, use_parentheses)
         
         # Generate all 23 variants
         variants = []
@@ -179,7 +214,7 @@ class Mod23BenchmarkGenerator:
             Tuple of (list_of_23_questions, correct_answer_index)
             where correct_answer_index indicates which question has the right answer
         """
-        expression, correct_answer = self._build_expression(n, use_parentheses)
+        expression, correct_answer, requires_modulo = self._build_expression(n, use_parentheses)
         
         # Generate all 23 variants
         variants = []
@@ -200,7 +235,7 @@ class Mod23BenchmarkGenerator:
         Returns:
             Tuple of (correct_question, wrong_question)
         """
-        expression, correct_answer = self._build_expression(n, use_parentheses)
+        expression, correct_answer, requires_modulo = self._build_expression(n, use_parentheses)
         
         # Generate wrong answer (off by 1, randomly +1 or -1)
         if self.rng.random() < 0.5:
@@ -251,13 +286,13 @@ class Mod23BenchmarkGenerator:
         jsonl_data = []
         
         for doc_id in range(count):
-            expression, correct_answer = self._build_expression(n, use_parentheses)
+            expression, correct_answer, requires_modulo = self._build_expression(n, use_parentheses)
             question_text = f"What is {expression} modulo 23?"
             
             # Generate all 23 answer variants for this question
             for idx in range(self.modulus):
                 answer_text = str(idx)
-                prompt = f"Goal: {question_text}\nAnswer: {answer_text}"
+                prompt = f"Question: {question_text}\nAnswer: {answer_text}"
                 
                 # Label is the correct answer index (not binary 0/1)
                 label = correct_answer
@@ -266,7 +301,8 @@ class Mod23BenchmarkGenerator:
                     "prompt": prompt,
                     "doc_id": doc_id,
                     "idx": idx,
-                    "label": label
+                    "label": label,
+                    "requires_modulo": requires_modulo
                 })
         
         return jsonl_data
@@ -288,6 +324,11 @@ class Mod23BenchmarkGenerator:
                 f.write(json.dumps(item) + '\n')
         
         print(f"Generated {len(data)} question-answer pairs ({count} questions × 23 answers) to '{filename}'")
+        
+        # Print statistics about modulo operations
+        requires_modulo_count = sum(1 for item in data if item['requires_modulo'] == 1)
+        unique_questions_requiring_modulo = len(set(item['doc_id'] for item in data if item['requires_modulo'] == 1))
+        print(f"Questions requiring modulo operation: {unique_questions_requiring_modulo}/{count} ({unique_questions_requiring_modulo/count*100:.1f}%)")
     
     def generate_jsonl_data_with_binary_labels(self, count: int, n: int = 3, use_parentheses: bool = True) -> List[Dict]:
         """
@@ -304,7 +345,7 @@ class Mod23BenchmarkGenerator:
         jsonl_data = []
         
         for doc_id in range(count):
-            expression, correct_answer = self._build_expression(n, use_parentheses)
+            expression, correct_answer, requires_modulo = self._build_expression(n, use_parentheses)
             question_text = f"What is {expression} modulo 23?"
             
             # Generate all 23 answer variants for this question
@@ -319,7 +360,8 @@ class Mod23BenchmarkGenerator:
                     "prompt": prompt,
                     "doc_id": doc_id,
                     "idx": idx,
-                    "label": label
+                    "label": label,
+                    "requires_modulo": requires_modulo
                 })
         
         return jsonl_data
@@ -334,14 +376,11 @@ if __name__ == "__main__":
     # Create generator with seed for reproducibility
     generator = Mod23BenchmarkGenerator(seed=42)
     
-    # Generate some example questions
-    print("Example questions with 3 operands:")
-    for i in range(5):
-        print(generator.generate_question(n=3))
-    
-    print("\nExample questions with 5 operands:")
-    for i in range(3):
-        print(generator.generate_question(n=5))
+    # Generate some example questions to show the new flag
+    print("Example questions with 3 operands (showing requires_modulo flag):")
+    for i in range(10):
+        expression, answer, requires_modulo = generator._build_expression(n=3)
+        print(f"Expression: {expression} = {answer} (mod 23), requires_modulo: {requires_modulo}")
     
     print("\nExample JSONL data (first few entries):")
     jsonl_data = generator.generate_jsonl_data(count=2, n=3)
@@ -352,17 +391,12 @@ if __name__ == "__main__":
     print(f"\nGenerated {len(jsonl_data)} total entries for 2 questions")
     
     # Generate benchmark files
-    generator.generate_benchmark_file("mod23_benchmark.txt", count=100, n=4)
-    print("\nGenerated 100 questions with 4 operands to 'mod23_benchmark.txt'")
+    generator.save_jsonl_file("mod23_benchmark_enhanced.jsonl", count=50, n=3)
+    print("Generated enhanced JSONL benchmark with 50 questions")
     
-    generator.save_jsonl_file("mod23_benchmark.jsonl", count=50, n=3)
-    print("Generated JSONL benchmark with 50 questions (1,150 total entries)")
-    
-    # Example with binary labels
-    binary_data = generator.generate_jsonl_data_with_binary_labels(count=1, n=3)
-    print(f"\nExample with binary labels (question with correct answer {binary_data[0]['label']}):")
-    for item in binary_data[:5]:
-        print(json.dumps(item))
-
-
-        
+    # Show statistics for different operand counts
+    print("\nStatistics for different operand counts:")
+    for n_ops in [2, 3, 4, 5]:
+        test_data = generator.generate_jsonl_data(count=100, n=n_ops)
+        unique_questions_requiring_modulo = len(set(item['doc_id'] for item in test_data if item['requires_modulo'] == 1))
+        print(f"n={n_ops}: {unique_questions_requiring_modulo}/100 questions require modulo operation ({unique_questions_requiring_modulo}%)")

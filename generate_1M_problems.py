@@ -24,7 +24,7 @@ def get_prob_sol_ans_triple(tpy: Literal["med", "hard"]):
 problem_list = []
 id_gen_list = []
 fix_seed(42)
-for idx in tqdm(range(1000)):
+for idx in tqdm(range(1000000)):
     id_gen = get_prob_sol_ans_triple("med")
     problem_list.append({
         "problem": tokenizer.decode(id_gen.prob_token).strip(),
